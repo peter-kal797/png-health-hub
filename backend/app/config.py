@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,6 +12,13 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _ensure_async_driver(cls, v: str) -> str:
+        if isinstance(v, str) and v.startswith("postgresql://") and "+asyncpg" not in v:
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
 
     @property
     def cors_list(self) -> list[str]:

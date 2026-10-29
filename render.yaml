@@ -10,6 +10,8 @@ services:
         fromDatabase:
           name: png-health-db
           property: connectionString
+      - key: ASYNC_DATABASE_URL
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: SMS_MASTER_PSK
