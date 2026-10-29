@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PNG Health Hub - Admin Portal</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; padding: 24px; }
+    h1 { color: #0ea5e9; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 24px; max-width: 600px; margin-bottom: 24px; }
+    .label { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; margin-top: 12px; margin-bottom: 4px; }
+    input, select, button { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; margin-bottom: 12px; box-sizing: border-box; }
+    button { background: #0ea5e9; color: #00243a; font-weight: bold; cursor: pointer; border: none; }
+    button:hover { background: #38bdf8; }
+    pre { background: #020617; padding: 12px; border-radius: 6px; white-space: pre-wrap; font-size: 12px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <h1>System Administration</h1>
+  <p style="color: #94a3b8;">Manage doctor accounts and hospital facilities</p>
+
+  <div id="login-card" class="card">
+    <h3>Admin Login</h3>
+    <div class="label">Username</div>
+    <input id="username" placeholder="admin_demo" />
+    <div class="label">Password</div>
+    <input id="password" type="password" placeholder="admin1234" />
+    <button id="btn-login">Authenticate</button>
+    <div id="login-status" style="margin-top: 12px; font-size: 12px;"></div>
+  </div>
+
+  <div id="dashboard" class="hidden">
+    <div class="card">
+      <h3>Create New User</h3>
+      <div class="label">Full Name</div>
+      <input id="new-name" placeholder="Dr. Jane Smith" />
+      
+      <div class="label">Username</div>
+      <input id="new-username" placeholder="jane_smith" />
+      
+      <div class="label">Password</div>
+      <input id="new-password" type="password" placeholder="secure_password" />
+      
+      <div class="label">Role</div>
+      <select id="new-role">
+        <option value="MedicalOfficer">Medical Officer (Doctor)</option>
+        <option value="CommunityHealthWorker">Community Health Worker</option>
+        <option value="SystemAdmin">System Administrator</option>
+      </select>
+
+      <div class="label">Facility</div>
+      <select id="new-facility">
+        <option>Loading facilities...</option>
+      </select>
+      
+      <button id="btn-create-user">Create User</button>
+    </div>
+
+    <div class="card">
+      <h3>Response Log</h3>
+      <pre id="log">No activity yet.</pre>
+    </div>
+  </div>
+
+  <script>
+    let token = null;
+
+    async function loadFacilities() {
+      const select = document.getElementById('new-facility');
+      try {
+        const res = await fetch('http://localhost:8000/api/v1/facilities', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const facilities = await res.json();
+        select.innerHTML = facilities.map(f => '<option value="' + f.name + '">' + f.name + ' (' + f.province + ')</option>').join('');
+      } catch (e) {
+        select.innerHTML = '<option>Error loading facilities</option>';
+      }
+    }
+
+    document.getElementById('btn-login').onclick = async () => {
+      const user = document.getElementById('username').value;
+      const pass = document.getElementById('password').value;
+      try {
+        const res = await fetch('http://localhost:8000/api/v1/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: user, password: pass })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail);
+        
+        token = data.access_token;
+        document.getElementById('login-card').classList.add('hidden');
+        document.getElementById('dashboard').classList.remove('hidden');
+        document.getElementById('log').textContent = 'Logged in as ' + data.full_name + ' (' + data.role + ')';
+        
+        loadFacilities();
+      } catch (e) {
+        document.getElementById('login-status').textContent = e.message;
+      }
+    };
+
+        document.getElementById('btn-create-user').onclick = async () => {
+      const body = {
+        full_name: document.getElementById('new-name').value,
+        username: document.getElementById('new-username').value,
+        password: document.getElementById('new-password').value,
+        role: document.getElementById('new-role').value,
+        facility_name: document.getElementById('new-facility').value
+      };
+      
+      try {
+        const res = await fetch('http://localhost:8000/api/v1/auth/users', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail);
+        
+        document.getElementById('log').textContent = JSON.stringify(data, null, 2);
+        
+        // 1. Show a clean notification instead of the browser alert
+        const toast = document.createElement('div');
+        toast.textContent = "User created successfully!";
+        toast.style.cssText = "position:fixed; bottom:20px; right:20px; background:#10b981; color:#022c22; padding:12px 24px; border-radius:6px; font-weight:bold; z-index:9999;";
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+
+        // 2. Forcefully clear the form fields
+        document.getElementById('new-name').value = '';
+        document.getElementById('new-username').value = '';
+        document.getElementById('new-password').value = '';
+        document.getElementById('new-role').value = 'MedicalOfficer';
+        document.getElementById('new-facility').selectedIndex = 0;
+        
+      } catch (e) {
+        document.getElementById('log').textContent = 'Error: ' + e.message;
+      }
+    };
+  </script>
+</body>
+</html>

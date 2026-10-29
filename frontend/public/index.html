@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PNG Health Hub - Clinical Portal</title>
+  <link rel="manifest" href="/manifest.json" />
+  <style>
+    :root { color-scheme: dark; --primary: #0ea5e9; --bg: #0f172a; --card: #1e293b; --border: #334155; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; background: var(--bg); color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; }
+    header { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background: #020617; border-bottom: 1px solid var(--border); }
+    .badge { background: #10b981; color: #022c22; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+    main { display: flex; flex: 1; overflow: hidden; }
+    .left-pane { width: 350px; border-right: 1px solid var(--border); display: flex; flex-direction: column; background: var(--card); }
+    .right-pane { flex: 1; padding: 24px; overflow-y: auto; }
+    input, select, button { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 6px; border: 1px solid var(--border); background: #0f172a; color: #e2e8f0; font-family: inherit; }
+    button { background: var(--primary); color: #00243a; font-weight: 600; cursor: pointer; border: none; }
+    .btn-secondary { background: transparent; color: var(--primary); border: 1px solid var(--primary); }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 24px; }
+    .card h2 { margin-top: 0; font-size: 1.1rem; color: var(--primary); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .label { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px; }
+    .allergy-alert { background: rgba(239,68,68,0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 12px; border-radius: 6px; font-weight: bold; margin-top: 16px; }
+    .hidden { display: none !important; }
+    #login-view { display: flex; justify-content: center; align-items: center; height: 100vh; }
+    .login-card { background: var(--card); padding: 32px; border-radius: 12px; width: 100%; max-width: 400px; }
+    .toast { position: fixed; bottom: 20px; right: 20px; background: #10b981; color: #022c22; padding: 12px 24px; border-radius: 6px; font-weight: bold; opacity: 0; transition: opacity 0.3s; z-index: 1000; }
+    .toast.show { opacity: 1; }
+    .tab-btn { width: auto; padding: 8px 16px; background: transparent; color: #94a3b8; border: 1px solid #334155; margin-bottom: 0; }
+    .tab-btn.active { background: #0ea5e9; color: #00243a; border-color: #0ea5e9; }
+    .patient-item { padding: 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
+    .patient-item:hover { background: #0f172a; }
+    .timeline-item { border-left: 2px solid var(--border); padding-left: 16px; margin-bottom: 16px; }
+    .timeline-date { font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px; }
+    .timeline-content { background: var(--card); padding: 12px; border-radius: 6px; }
+  </style>
+  <script src="/src/qrcode.min.js"></script>
+  <script src="/src/html5-qrcode.min.js"></script>
+</head>
+<body>
+
+  <div id="login-view">
+    <div class="login-card">
+      <h1 style="text-align: center;">PNG Health Hub</h1>
+      <input id="username" placeholder="Username" value="dr_demo" />
+      <input id="password" type="password" placeholder="Password" value="demo1234" />
+      <button id="btn-login">Secure Login</button>
+      <div id="login-status" style="margin-top: 12px; font-size: 12px;"></div>
+    </div>
+  </div>
+
+  <div id="app-view" class="hidden" style="height: 100vh; display: flex; flex-direction: column;">
+    <header>
+      <h1>PNG Health Hub <span style="font-size: 0.8rem; color: #94a3b8;">Clinical Portal</span></h1>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div id="network-status" style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #10b981;">
+          <span style="width: 10px; height: 10px; background: #10b981; border-radius: 50%; display: inline-block;"></span> Online
+        </div>
+        <div id="sync-badge" class="badge hidden" style="background: #ef4444; color: white; cursor: pointer;">
+          Pending: <span id="sync-count">0</span>
+        </div>
+        <span class="badge" id="user-badge">Logged In</span>
+        <button id="btn-logout" style="width: auto; padding: 6px 12px; background: transparent; border: 1px solid #ef4444; color: #ef4444;">Logout</button>
+      </div>
+    </header>
+
+    <main>
+      <div class="left-pane">
+        <div style="padding: 16px; border-bottom: 1px solid var(--border);">
+          <input id="search-input" placeholder="Search by Name or SevisPass ID..." />
+          <button id="btn-search" class="btn-secondary">Search Directory</button>
+          <input id="diag-search" placeholder="Search by Diagnosis..." style="margin-top: 8px;" />
+          <button id="btn-diag-search" class="btn-secondary">Search Diagnoses</button>
+          <button id="btn-show-register" class="btn-secondary">+ Register New Patient</button>
+          <button id="btn-scan" class="btn-secondary">Scan Patient QR</button>
+        </div>
+        <div id="patient-list" style="overflow-y: auto; flex: 1;">
+          <div style="padding: 16px; color: #94a3b8; text-align: center;">Search for a patient to begin.</div>
+        </div>
+      </div>
+
+      <div class="right-pane">
+        <div id="empty-state" style="display: flex; height: 100%; align-items: center; justify-content: center; color: #475569; flex-direction: column;">
+          <h2>No Patient Selected</h2>
+        </div>
+
+        <div id="register-form" class="card hidden">
+          <h2>Register New Patient</h2>
+          <div class="grid-2">
+            <div><div class="label">SevisPass ID</div><input id="reg-id" /></div>
+            <div><div class="label">DOB</div><input id="reg-dob" type="date" /></div>
+            <div><div class="label">First Name</div><input id="reg-fname" /></div>
+            <div><div class="label">Last Name</div><input id="reg-lname" /></div>
+            <div><div class="label">Gender</div><select id="reg-gender"><option value="M">Male</option><option value="F">Female</option></select></div>
+            <div><div class="label">Blood Type</div><input id="reg-blood" /></div>
+            <div><div class="label">Province</div><input id="reg-province" /></div>
+            <div><div class="label">Allergies</div><input id="reg-allergies" /></div>
+          </div>
+          <button id="btn-save-patient">Save Patient</button>
+        </div>
+
+        <div id="patient-details" class="hidden">
+          <div class="card">
+            <div style="display: flex; justify-content: space-between;">
+              <div>
+                <h2 id="det-name" style="font-size: 1.8rem;"></h2>
+                <div class="label">SevisPass ID</div>
+                <div id="det-id" style="font-family: monospace;"></div>
+                <button id="btn-qr" style="width: auto; padding: 6px 12px; font-size: 12px;">Print QR ID</button>
+                <button id="btn-print" style="width: auto; padding: 6px 12px; font-size: 12px; margin-left: 8px;">Print Summary</button>
+              </div>
+              <div style="text-align: right;">
+                <div class="label">DOB</div>
+                <div id="det-dob"></div>
+                <div class="label">Blood Type</div>
+                <div id="det-blood" style="color: #ef4444;"></div>
+              </div>
+            </div>
+            <div id="allergy-alert" class="allergy-alert hidden">
+              <strong>ALLERGY ALERT:</strong> <span id="det-allergies"></span>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+            <button class="tab-btn active" data-tab="tab-encounter">Encounters</button>
+            <button class="tab-btn" data-tab="tab-vaccines">Vaccinations</button>
+            <button class="tab-btn" data-tab="tab-maternal">Maternal</button>
+            <button class="tab-btn" data-tab="tab-operations">Pharmacy & Billing</button>
+            <button class="tab-btn" data-tab="tab-referrals">Referrals</button>
+            <button class="tab-btn" data-tab="tab-guidelines">Guidelines</button>
+          </div>
+
+          <div id="tab-encounter" class="tab-content">
+            <div class="card">
+              <h2>Record New Encounter</h2>
+              <div class="grid-2">
+                <div><div class="label">Symptoms</div><input id="enc-symptoms" /></div>
+                <div><div class="label">Diagnosis</div><input id="enc-diagnosis" /></div>
+              </div>
+              <div><div class="label">Medications</div><input id="enc-meds" /></div>
+              <div class="grid-2">
+                <div><div class="label">BP</div><input id="enc-bp" /></div>
+                <div><div class="label">Temp</div><input id="enc-temp" /></div>
+              </div>
+              <div class="grid-2">
+                <div><div class="label">HR</div><input id="enc-hr" /></div>
+                <div><div class="label">Weight</div><input id="enc-weight" /></div>
+              </div>
+              <button id="btn-save-encounter">Save Encounter</button>
+            </div>
+            <div class="card"><h2>Clinical History</h2><div id="encounter-timeline"></div></div>
+          </div>
+
+          <div id="tab-vaccines" class="tab-content hidden">
+            <div class="card">
+              <h2>Record Vaccination</h2>
+              <div class="grid-2">
+                <div><div class="label">Vaccine</div><input id="vax-name" /></div>
+                <div><div class="label">Dose</div><input id="vax-dose" /></div>
+              </div>
+              <div class="grid-2">
+                <div><div class="label">Date</div><input id="vax-date" type="date" /></div>
+                <div><div class="label">Admin By</div><input id="vax-by" /></div>
+              </div>
+              <button id="btn-save-vax">Save Vaccination</button>
+            </div>
+            <div class="card"><h2>History</h2><div id="vax-timeline"></div></div>
+          </div>
+
+          <div id="tab-maternal" class="tab-content hidden">
+            <div class="card">
+              <h2>Record Maternal Visit</h2>
+              <div class="grid-2">
+                <div><div class="label">Visit Date</div><input id="mat-date" type="date" /></div>
+                <div><div class="label">Weeks</div><input id="mat-age" type="number" /></div>
+              </div>
+              <div class="grid-2">
+                <div><div class="label">BP</div><input id="mat-bp" /></div>
+                <div><div class="label">Weight</div><input id="mat-weight" /></div>
+              </div>
+              <div class="grid-2">
+                <div><div class="label">Fetal HR</div><input id="mat-fhr" /></div>
+                <div><div class="label">Notes</div><input id="mat-notes" /></div>
+              </div>
+              <button id="btn-save-maternal">Save Visit</button>
+            </div>
+            <div class="card"><h2>History</h2><div id="mat-timeline"></div></div>
+          </div>
+
+          <div id="tab-operations" class="tab-content hidden">
+            <div class="card">
+              <h2>Pharmacy Inventory</h2>
+              <div class="grid-2">
+                <div><div class="label">Drug</div><input id="inv-name" /></div>
+                <div><div class="label">Quantity</div><input id="inv-qty" type="number" /></div>
+              </div>
+              <div class="grid-2">
+                <div><div class="label">Unit</div><input id="inv-unit" /></div>
+                <div><div class="label">Facility</div><input id="inv-facility" value="Port Moresby General Hospital" /></div>
+              </div>
+              <button id="btn-add-inventory">Add to Inventory</button>
+              <div id="low-stock-alert" style="margin-top: 16px; padding: 12px; background: rgba(239,68,68,0.15); border: 1px solid #ef4444; border-radius: 6px; color: #fca5a5; display: none;">
+                LOW STOCK: <span id="low-stock-list"></span>
+              </div>
+              <h3 style="margin-top: 24px;">Current Stock</h3>
+              <div id="inventory-list"></div>
+            </div>
+            <div class="card">
+              <h2>Patient Billing</h2>
+              <div class="grid-2">
+                <div><div class="label">Description</div><input id="bill-desc" /></div>
+                <div><div class="label">Amount (PGK)</div><input id="bill-amount" type="number" step="0.01" /></div>
+              </div>
+              <button id="btn-add-bill">Add Bill</button>
+              <button id="btn-print-bill" style="background: #10b981; color: white;">Print Bill Statement</button>
+              <h3 style="margin-top: 24px;">Bill History</h3>
+              <div id="bills-list"></div>
+            </div>
+          </div>
+
+          <div id="tab-referrals" class="tab-content hidden">
+            <div class="card">
+              <h2>Create Referral</h2>
+              <div class="grid-2">
+                <div><div class="label">From Facility</div><input id="ref-from" value="Port Moresby General Hospital" /></div>
+                <div><div class="label">To Facility</div>
+                  <select id="ref-to">
+                    <option>Angau General Hospital</option>
+                    <option>Mt Hagen General Hospital</option>
+                    <option>Goroka General Hospital</option>
+                    <option>Nonga General Hospital</option>
+                    <option>Modilon General Hospital</option>
+                    <option>Boram General Hospital</option>
+                    <option>Port Moresby General Hospital</option>
+                    <option>Kundiawa District Hospital</option>
+                    <option>Alotau Provincial Hospital</option>
+                    <option>Tari CHP</option>
+                  </select>
+                </div>
+              </div>
+              <div><div class="label">Clinical Reason</div><input id="ref-reason" placeholder="e.g., Suspected TB - needs specialist" /></div>
+              <button id="btn-create-referral">Create Referral</button>
+            </div>
+            <div class="card"><h2>Inbound Referrals</h2><div id="inbound-list"></div></div>
+          </div>
+
+          <div id="tab-guidelines" class="tab-content hidden">
+            <div class="card">
+              <h2>Clinical Guidelines (Offline Library)</h2>
+              <input id="guide-search" placeholder="Search guidelines..." />
+              <div id="guidelines-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast">Success</div>
+  <div id="qr-modal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 32px; border-radius: 12px; z-index: 9999;"></div>
+  <div id="scanner-modal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 24px; border-radius: 12px; z-index: 9999; width: 400px;">
+    <h3 style="color: #0f172a;">Scan QR Code</h3>
+    <div id="qr-reader" style="width: 100%;"></div>
+    <button id="btn-close-scanner" style="background: #ef4444; color: white;">Cancel</button>
+  </div>
+
+  <script type="module" src="/src/app.js"></script>
+<script>
+  // Set this after deployment to your Render backend URL, e.g.:
+  window.HUB_BACKEND_URL = "https://png-health-backend.onrender.com";
+</script>
+</body>
+</html>

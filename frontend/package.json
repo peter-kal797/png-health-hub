@@ -1,0 +1,13 @@
+{
+  "name": "png-health-pwa",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "http-server ./public -p 5173 -c-1 --cors",
+    "start": "npx http-server public -p 5173 -c-1 --cors"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

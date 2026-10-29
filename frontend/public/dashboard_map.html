@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PNG Health Hub - National Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; padding: 24px; }
+    h1 { color: #0ea5e9; margin-top: 0; }
+    .kpi-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+    .kpi-box { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 20px; text-align: center; }
+    .kpi-val { font-size: 2.5rem; font-weight: bold; color: #0ea5e9; }
+    .kpi-label { color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+    .grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 20px; }
+    #map { height: 500px; width: 100%; border-radius: 8px; border: 1px solid #334155; }
+  </style>
+</head>
+<body>
+  <h1>National Health Dashboard - Papua New Guinea</h1>
+  
+  <div class="kpi-row">
+    <div class="kpi-box">
+      <div class="kpi-val" id="kpi-patients">-</div>
+      <div class="kpi-label">Total Patients</div>
+    </div>
+    <div class="kpi-box">
+      <div class="kpi-val" id="kpi-encounters">-</div>
+      <div class="kpi-label">Clinical Encounters</div>
+    </div>
+    <div class="kpi-box">
+      <div class="kpi-val" id="kpi-vaccinations">-</div>
+      <div class="kpi-label">Vaccinations</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>Facility Network Map</h3>
+      <div id="map"></div>
+    </div>
+    <div class="card">
+      <h3>Top 5 National Diagnoses</h3>
+      <canvas id="diagChart"></canvas>
+    </div>
+  </div>
+
+  <script>
+    // Facility coordinates in PNG
+    const coords = {
+      "Port Moresby General Hospital": [-9.4438, 147.1803],
+      "Angau General Hospital": [-6.7248, 147.0001],
+      "Mt Hagen General Hospital": [-5.8581, 144.2303],
+      "Goroka General Hospital": [-6.0833, 145.3833],
+      "Nonga General Hospital": [-4.2000, 152.1667],
+      "Modilon General Hospital": [-5.2167, 145.8000],
+      "Boram General Hospital": [-3.5500, 143.6333],
+      "Tari CHP": [-5.8440, 142.9460],
+      "Kundiawa District Hospital": [-6.0200, 144.9700],
+      "Alotau Provincial Hospital": [-10.3167, 150.4500]
+    };
+
+    async function loadData() {
+      const loginRes = await fetch("http://localhost:8000/api/v1/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "dr_demo", password: "demo1234" })
+      });
+      const login = await loginRes.json();
+      
+      const res = await fetch("http://localhost:8000/api/v1/analytics", {
+        headers: { "Authorization": "Bearer " + login.access_token }
+      });
+      const data = await res.json();
+
+      document.getElementById("kpi-patients").textContent = data.total_patients;
+      document.getElementById("kpi-encounters").textContent = data.total_encounters;
+      document.getElementById("kpi-vaccinations").textContent = data.total_vaccinations;
+
+      // Diagnoses Chart
+      new Chart(document.getElementById("diagChart"), {
+        type: 'bar',
+        data: {
+          labels: data.top_diagnoses.map(d => d.name),
+          datasets: [{
+            label: 'Cases',
+            data: data.top_diagnoses.map(d => d.count),
+            backgroundColor: '#ef4444'
+          }]
+        },
+        options: { indexAxis: 'y' }
+      });
+
+      // Build the map
+      const map = L.map('map').setView([-6.5, 145.0], 6);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+
+      // Add markers for each facility
+      data.all_facilities.forEach(f => {
+        const pos = coords[f.name];
+        if (pos) {
+          const marker = L.marker(pos).addTo(map);
+          marker.bindPopup(`<strong>${f.name}</strong><br>Province: ${f.province}<br>Type: ${f.type}`);
+        }
+      });
+    }
+
+    loadData();
+  </script>
+</body>
+</html>

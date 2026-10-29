@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PNG Health Hub - District Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; padding: 24px; }
+    h1 { margin-top: 0; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 20px; }
+    .kpi { display: flex; gap: 24px; margin-bottom: 24px; }
+    .kpi-box { background: #1e293b; flex: 1; padding: 24px; border-radius: 8px; text-align: center; border: 1px solid #334155; }
+    .kpi-val { font-size: 2.5rem; font-weight: bold; color: #0ea5e9; }
+    .kpi-label { color: #94a3b8; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  </style>
+</head>
+<body>
+  <h1>District Health Analytics</h1>
+  <p style="color: #94a3b8;">Live data from the National Health Registry</p>
+
+  <div class="kpi">
+    <div class="kpi-box">
+      <div class="kpi-val" id="kpi-patients">-</div>
+      <div class="kpi-label">Total Patients</div>
+    </div>
+    <div class="kpi-box">
+      <div class="kpi-val" id="kpi-encounters">-</div>
+      <div class="kpi-label">Clinical Encounters</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Encounters by Facility</h3>
+      <canvas id="facilityChart"></canvas>
+    </div>
+    <div class="card">
+      <h3>Top Diagnoses</h3>
+      <canvas id="diagnosisChart"></canvas>
+    </div>
+  </div>
+
+  <script>
+    async function loadData() {
+      // Login as doctor
+      const loginRes = await fetch("http://localhost:8000/api/v1/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "dr_demo", password: "demo1234" })
+      });
+      const login = await loginRes.json();
+      const token = login.access_token;
+
+      // Fetch analytics
+      const res = await fetch("http://localhost:8000/api/v1/analytics", {
+        headers: { "Authorization": "Bearer " + token }
+      });
+      const data = await res.json();
+
+      document.getElementById("kpi-patients").textContent = data.total_patients;
+      document.getElementById("kpi-encounters").textContent = data.total_encounters;
+
+      // Facility Chart
+      new Chart(document.getElementById("facilityChart"), {
+        type: 'bar',
+        data: {
+          labels: data.facilities.map(f => f.name),
+          datasets: [{
+            label: 'Encounters',
+            data: data.facilities.map(f => f.count),
+            backgroundColor: '#0ea5e9'
+          }]
+        }
+      });
+
+      // Diagnosis Chart
+      new Chart(document.getElementById("diagnosisChart"), {
+        type: 'doughnut',
+        data: {
+          labels: data.top_diagnoses.map(d => d.name),
+          datasets: [{
+            data: data.top_diagnoses.map(d => d.count),
+            backgroundColor: ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6']
+          }]
+        }
+      });
+    }
+
+    loadData();
+  </script>
+</body>
+</html>

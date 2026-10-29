@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PNG Health Hub - SMS Simulator</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; padding: 24px; display: flex; flex-direction: column; align-items: center; }
+    h1 { color: #0ea5e9; margin-bottom: 8px; }
+    p { color: #94a3b8; max-width: 600px; text-align: center; margin-bottom: 24px; }
+    .phone { background: #1e293b; border: 4px solid #334155; border-radius: 24px; padding: 16px; width: 360px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+    .screen { background: #0f172a; padding: 16px; border-radius: 12px; min-height: 400px; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; }
+    .message { padding: 10px 14px; border-radius: 12px; max-width: 80%; font-size: 14px; }
+    .from-user { background: #0ea5e9; color: #00243a; align-self: flex-end; border-bottom-right-radius: 4px; }
+    .from-system { background: #334155; color: #e2e8f0; align-self: flex-start; border-bottom-left-radius: 4px; }
+    .input-area { display: flex; gap: 8px; margin-top: 16px; }
+    .input-area input { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; }
+    .input-area button { padding: 12px 20px; border-radius: 8px; border: none; background: #0ea5e9; color: #00243a; font-weight: bold; cursor: pointer; }
+    .controls { margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .controls button { padding: 8px 16px; border-radius: 6px; border: none; background: #334155; color: #e2e8f0; cursor: pointer; font-size: 12px; }
+    .controls button:hover { background: #475569; }
+  </style>
+</head>
+<body>
+  <h1>SMS Zero-Data Simulator</h1>
+  <p>This simulates a health worker in a remote village with no internet. They type an encrypted command into a basic phone. The system decrypts it, queries the national database, and replies instantly.</p>
+
+  <div class="phone">
+    <div class="screen" id="chat-screen">
+      <div class="message from-system">Welcome to the PNG Health SMS Gateway.</div>
+    </div>
+    <div class="input-area">
+      <input id="sms-input" placeholder="Type an SMS command..." />
+      <button id="btn-send">Send</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button onclick="sendCommand('HLTH ALGY PNG-SP-100001')">Query Allergies</button>
+    <button onclick="sendCommand('HLTH DIAG PNG-SP-100001')">Query Diagnoses</button>
+    <button onclick="sendCommand('HLTH LOG PNG-SP-100001#Malaria#Chloroquine')">Log Encounter</button>
+  </div>
+
+  <script>
+    const chatScreen = document.getElementById('chat-screen');
+    const smsInput = document.getElementById('sms-input');
+
+    function addMessage(text, isUser) {
+      const div = document.createElement('div');
+      div.className = 'message ' + (isUser ? 'from-user' : 'from-system');
+      div.textContent = text;
+      chatScreen.appendChild(div);
+      chatScreen.scrollTop = chatScreen.scrollHeight;
+    }
+
+    async function sendCommand(cmd) {
+      // Render the user's input
+      addMessage(cmd, true);
+      smsInput.value = '';
+
+      try {
+        // 1. Encrypt the command on the device (simulated here with plaintext for demo simplicity, 
+        // but in production it uses the device crypto.js)
+        // 2. Send to the FastAPI backend webhook
+        const res = await fetch('http://localhost:8000/api/v1/sms/inbound', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: '+67570000000', text: cmd })
+        });
+        const data = await res.json();
+        
+        // 3. Display the system's reply
+        addMessage(data.reply, false);
+      } catch (e) {
+        addMessage('ERROR: Gateway unreachable.', false);
+      }
+    }
+
+    document.getElementById('btn-send').onclick = () => {
+      const cmd = smsInput.value.trim();
+      if (cmd) sendCommand(cmd);
+    };
+
+    smsInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') document.getElementById('btn-send').click();
+    });
+  </script>
+</body>
+</html>
