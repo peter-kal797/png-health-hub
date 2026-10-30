@@ -61,3 +61,27 @@ async def sms_inbound(body: InboundSMS, db: AsyncSession = Depends(get_db)):
     reply = await handle_sms(db, sender=body.from_, raw_text=body.text)
     log.info("SMS from %s -> %s", body.from_, reply[:60])
     return {"reply": reply}
+# ---------- AUTO-MIGRATE ON STARTUP ----------
+@app.on_event("startup")
+async def _auto_migrate():
+    """Run SQL migrations on boot. Idempotent — safe to run on every deploy."""
+    import pathlib
+    from .database import engine
+    from sqlalchemy import text
+
+    migrations_dir = pathlib.Path(__file__).parent.parent / "migrations"
+    if not migrations_dir.exists():
+        log.warning("No migrations directory found")
+        return
+
+    async with engine.begin() as conn:
+        for sql_file in sorted(migrations_dir.glob("*.sql")):
+            log.info("Applying migration: %s", sql_file.name)
+            sql = sql_file.read_text(encoding="utf-8")
+            # Split on semicolons that are followed by a newline + non-whitespace
+            for stmt in [s.strip() for s in sql.split(";") if s.strip()]:
+                try:
+                    await conn.execute(text(stmt))
+                except Exception as e:
+                    log.warning("Migration stmt skipped (%s): %s", sql_file.name, str(e)[:100])
+    log.info("Auto-migrate complete.")
