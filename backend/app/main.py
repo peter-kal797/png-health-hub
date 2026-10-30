@@ -62,29 +62,6 @@ async def sms_inbound(body: InboundSMS, db: AsyncSession = Depends(get_db)):
     log.info("SMS from %s -> %s", body.from_, reply[:60])
     return {"reply": reply}
 # ---------- AUTO-MIGRATE ON STARTUP ----------
-@app.on_event("startup")
-async def _auto_migrate():
-    """Run SQL migrations on boot. Idempotent — safe to run on every deploy."""
-    import pathlib
-    from .database import engine
-    from sqlalchemy import text
-
-    migrations_dir = pathlib.Path(__file__).parent.parent / "migrations"
-    if not migrations_dir.exists():
-        log.warning("No migrations directory found")
-        return
-
-    async with engine.begin() as conn:
-        for sql_file in sorted(migrations_dir.glob("*.sql")):
-            log.info("Applying migration: %s", sql_file.name)
-            sql = sql_file.read_text(encoding="utf-8")
-            # Split on semicolons that are followed by a newline + non-whitespace
-            for stmt in [s.strip() for s in sql.split(";") if s.strip()]:
-                try:
-                    await conn.execute(text(stmt))
-                except Exception as e:
-                    log.warning("Migration stmt skipped (%s): %s", sql_file.name, str(e)[:100])
-    log.info("Auto-migrate complete.")
 # ---------- DIAGNOSTIC MIGRATION ENDPOINT ----------
 @app.get("/debug/migrate")
 async def debug_migrate():
@@ -107,3 +84,78 @@ async def debug_migrate():
                 results.append({"file": sql_file.name, "status": "ERROR", "error": str(e)[:300]})
 
     return {"migrations": results}
+
+# ============================================================
+# AUTO-MIGRATE + DIAGNOSTIC
+# ============================================================
+def _split_sql_statements(sql: str) -> list[str]:
+    """Split a multi-statement SQL file into individual commands."""
+    import re as _re
+    # Strip full-line comments
+    lines = []
+    for line in sql.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith("--"):
+            continue
+        lines.append(line)
+    cleaned = "\n".join(lines)
+
+    # Split on ; followed by optional whitespace + newline OR end of string
+    parts = _re.split(r";\s*(?:\n|$)", cleaned)
+    return [p.strip() for p in parts if p.strip()]
+
+
+async def _run_migrations(log_errors: bool = True) -> list[dict]:
+    import pathlib
+    from .database import engine
+    from sqlalchemy import text
+
+    migrations_dir = pathlib.Path(__file__).parent.parent / "migrations"
+    results: list[dict] = []
+
+    if not migrations_dir.exists():
+        log.warning("No migrations directory found at %s", migrations_dir)
+        return results
+
+    async with engine.begin() as conn:
+        for sql_file in sorted(migrations_dir.glob("*.sql")):
+            statements = _split_sql_statements(sql_file.read_text(encoding="utf-8"))
+            ok = 0
+            failed = 0
+            first_error: str | None = None
+            for stmt in statements:
+                try:
+                    await conn.execute(text(stmt))
+                    ok += 1
+                except Exception as e:
+                    failed += 1
+                    if first_error is None:
+                        first_error = str(e)[:300]
+                    if log_errors:
+                        log.warning("Statement failed in %s: %s", sql_file.name, str(e)[:150])
+            results.append({
+                "file": sql_file.name,
+                "statements": len(statements),
+                "ok": ok,
+                "failed": failed,
+                "first_error": first_error,
+            })
+    return results
+
+
+@app.on_event("startup")
+async def _auto_migrate():
+    log.info("Applying migrations...")
+    try:
+        res = await _run_migrations(log_errors=False)
+        for r in res:
+            log.info("  %s: %d ok, %d failed", r["file"], r["ok"], r["failed"])
+        log.info("Auto-migrate complete.")
+    except Exception as e:
+        log.error("Auto-migrate failed: %s", e)
+
+
+@app.get("/debug/migrate")
+async def debug_migrate():
+    res = await _run_migrations(log_errors=True)
+    return {"migrations": res}
