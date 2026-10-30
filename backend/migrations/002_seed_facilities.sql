@@ -9,4 +9,4 @@ INSERT INTO facilities (name, province, type) VALUES
 ('Kundiawa District Hospital', 'Chimbu', 'Hospital'),
 ('Alotau Provincial Hospital', 'Milne Bay', 'Hospital'),
 ('Tari CHP', 'Hela', 'Community Health Post')
-ON CONFLICT (name) DO NOTHING;
+ON CONFLICT DO NOTHING;
