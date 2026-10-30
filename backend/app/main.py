@@ -85,3 +85,25 @@ async def _auto_migrate():
                 except Exception as e:
                     log.warning("Migration stmt skipped (%s): %s", sql_file.name, str(e)[:100])
     log.info("Auto-migrate complete.")
+# ---------- DIAGNOSTIC MIGRATION ENDPOINT ----------
+@app.get("/debug/migrate")
+async def debug_migrate():
+    """Run migrations and return the actual error, if any."""
+    import pathlib
+    from .database import engine
+    from sqlalchemy import text
+
+    migrations_dir = pathlib.Path(__file__).parent.parent / "migrations"
+    results = []
+
+    async with engine.begin() as conn:
+        for sql_file in sorted(migrations_dir.glob("*.sql")):
+            sql = sql_file.read_text(encoding="utf-8")
+            try:
+                # Execute the whole file as one block (Postgres handles multi-statement)
+                await conn.execute(text(sql))
+                results.append({"file": sql_file.name, "status": "OK"})
+            except Exception as e:
+                results.append({"file": sql_file.name, "status": "ERROR", "error": str(e)[:300]})
+
+    return {"migrations": results}
