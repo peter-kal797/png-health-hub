@@ -57,3 +57,25 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_logs (timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_patient ON audit_logs (target_patient);
+CREATE TABLE IF NOT EXISTS facilities (
+    facility_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(150) NOT NULL UNIQUE,
+    province VARCHAR(100) NOT NULL,
+    type VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS guidelines (
+    guideline_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(150) NOT NULL UNIQUE,
+    category VARCHAR(100) NOT NULL,
+    content TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS bills (
+    bill_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id VARCHAR(50) NOT NULL REFERENCES patients(patient_id) ON DELETE CASCADE,
+    description VARCHAR(255) NOT NULL,
+    amount NUMERIC(10, 2) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
