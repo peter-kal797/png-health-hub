@@ -1,4 +1,4 @@
-const BASE = "http://localhost:8000";
+const BASE = window.HUB_BACKEND_URL || "https://png-health-backend.onrender.com";
 let _token = localStorage.getItem("hub_jwt") || null;
 let _facility = localStorage.getItem("hub_facility") || "";
 

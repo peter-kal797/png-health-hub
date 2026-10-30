@@ -20,8 +20,8 @@ services:
         value: HS256
       - key: JWT_EXPIRE_MINUTES
         value: "720"
-      -  -  - key: CORS_ORIGINS
-    value: "https://png-health-hub-frontend-s7qm.vercel.app,http://localhost:5173,http://127.0.0.1:5173"
+      - key: CORS_ORIGINS
+        value: "https://png-health-hub-frontend-s7qm.vercel.app,https://png-health-hub-frontend-s7qm-a8smv5anr-peter-kal797.vercel.app,http://localhost:5173"
 
 databases:
   - name: png-health-db
