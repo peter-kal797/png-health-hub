@@ -22,7 +22,7 @@ PREFIX = "HLTH ENC "
 
 
 def _monthly_psk(year: int, month: int) -> bytes:
-    master = settings.sms_master_psk.encode()
+    master = settings.SMS_MASTER_PSK.encode()
     msg = f"{year:04d}-{month:02d}".encode()
     return hmac.new(master, msg, hashlib.sha256).digest()
 

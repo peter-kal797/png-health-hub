@@ -1,161 +1,221 @@
+# backend/app/main.py
+import asyncio
 import logging
-from fastapi import Depends, FastAPI
+import re
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .config import settings
-from .database import get_db
-from .routers import (
-    auth_router, encounters_router, patients_router, sync_router,
-    fhir_router, analytics_router, facilities_router, clinical_router,
-    reports_router, operations_router, referrals_router, dhis2_router,
+from app.config import settings
+from app.database import engine, AsyncSessionLocal
+from app.routers import (
+    auth_router, clinical_router, encounters_router, facilities_router,
+    fhir_router, operations_router, patients_router, reports_router,
+    sync_router, analytics_router, referrals_router, dhis2_router,
     supply_chain_router, guidelines_router, surveillance_router,
 )
-from .sms.parser import handle_sms
 
-logging.basicConfig(level=settings.log_level)
-log = logging.getLogger("hub")
+logger = logging.getLogger("png_hub")
+logging.basicConfig(level=getattr(settings, "LOG_LEVEL", "INFO"))
 
-app = FastAPI(
-    title="PNG Cross-Hospital Digital Health Record Hub",
-    version="0.1.0",
-    description="Offline-first clinical records with SMS edge for rural CHPs.",
-)
+MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
+
+
+def split_sql_statements(sql: str) -> list[str]:
+    """
+    Split a SQL script into individual statements.
+
+    Handles:
+      - line comments (-- ...)
+      - block comments (/* ... */)
+      - single-quoted strings with '' escapes
+      - dollar-quoted strings ($$ ... $$, $tag$ ... $tag$)
+      - semicolons only at statement boundaries
+    """
+    statements: list[str] = []
+    buf: list[str] = []
+    i, n = 0, len(sql)
+
+    def flush():
+        stmt = "".join(buf).strip()
+        if stmt and not re.fullmatch(r"[;\s]*", stmt):
+            statements.append(stmt)
+        buf.clear()
+
+    while i < n:
+        ch = sql[i]
+        nxt = sql[i + 1] if i + 1 < n else ""
+
+        # Line comment
+        if ch == "-" and nxt == "-":
+            while i < n and sql[i] != "\n":
+                i += 1
+            continue
+
+        # Block comment
+        if ch == "/" and nxt == "*":
+            i += 2
+            while i + 1 < n and not (sql[i] == "*" and sql[i + 1] == "/"):
+                i += 1
+            i += 2
+            continue
+
+        # Single-quoted string
+        if ch == "'":
+            buf.append(ch)
+            i += 1
+            while i < n:
+                buf.append(sql[i])
+                if sql[i] == "'" and i + 1 < n and sql[i + 1] == "'":
+                    buf.append(sql[i + 1])
+                    i += 2
+                    continue
+                if sql[i] == "'":
+                    i += 1
+                    break
+                i += 1
+            continue
+
+        # Dollar-quoted string ($tag$ ... $tag$)
+        if ch == "$":
+            m = re.match(r"\$[A-Za-z_]*\$", sql[i:])
+            if m:
+                tag = m.group(0)
+                buf.append(tag)
+                i += len(tag)
+                end = sql.find(tag, i)
+                if end == -1:
+                    buf.append(sql[i:])
+                    i = n
+                else:
+                    buf.append(sql[i:end + len(tag)])
+                    i = end + len(tag)
+                continue
+
+        # Statement boundary
+        if ch == ";":
+            flush()
+            i += 1
+            continue
+
+        buf.append(ch)
+        i += 1
+
+    flush()
+    return statements
+
+
+async def run_migration_file(session: AsyncSession, path: Path) -> int:
+    sql = path.read_text(encoding="utf-8")
+    stmts = split_sql_statements(sql)
+    executed = 0
+    for idx, stmt in enumerate(stmts, start=1):
+        try:
+            await session.execute(text(stmt))
+            await session.commit()
+            executed += 1
+        except Exception as e:
+            await session.rollback()
+            logger.error(
+                "Migration %s stmt #%d failed: %s\n--- SQL ---\n%s\n-----------",
+                path.name, idx, e, stmt[:500],
+            )
+            raise
+    return executed
+
+
+async def _auto_migrate() -> dict:
+    """Run every .sql file in migrations/ in lexicographic order."""
+    if not MIGRATIONS_DIR.exists():
+        logger.warning("Migrations dir %s missing", MIGRATIONS_DIR)
+        return {"status": "no_migrations_dir", "files": []}
+
+    files = sorted(MIGRATIONS_DIR.glob("*.sql"))
+    report = {"status": "ok", "files": [], "errors": []}
+
+    # Verify connectivity once
+    async with AsyncSessionLocal() as session:
+        await session.execute(text("SELECT 1"))
+
+    for f in files:
+        try:
+            async with AsyncSessionLocal() as session:
+                count = await run_migration_file(session, f)
+            report["files"].append({"file": f.name, "statements": count})
+            logger.info("✓ %s (%d statements)", f.name, count)
+        except Exception as e:
+            report["status"] = "failed"
+            report["errors"].append({"file": f.name, "error": str(e)})
+            logger.exception("✗ %s", f.name)
+            break
+    return report
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Booting PNG Health Hub — running auto-migrations")
+    try:
+        await _auto_migrate()
+    except Exception:
+        logger.exception("Auto-migration failed; app will still start")
+    yield
+    await engine.dispose()
+
+
+app = FastAPI(title="PNG Health Hub", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(auth_router.router)
-app.include_router(patients_router.router)
-app.include_router(encounters_router.router)
-app.include_router(sync_router.router)
-app.include_router(fhir_router.router)
-app.include_router(analytics_router.router)
-app.include_router(facilities_router.router)
-app.include_router(clinical_router.router)
-app.include_router(reports_router.router)
-app.include_router(operations_router.router)
-app.include_router(referrals_router.router)
-app.include_router(dhis2_router.router)
-app.include_router(supply_chain_router.router)
-app.include_router(guidelines_router.router)
-app.include_router(surveillance_router.router)
+for r in (
+    auth_router, patients_router, encounters_router, clinical_router,
+    facilities_router, reports_router, operations_router, sync_router,
+    fhir_router, analytics_router, referrals_router, dhis2_router,
+    supply_chain_router, guidelines_router, surveillance_router,
+):
+    app.include_router(r.router, prefix="/api/v1")
+
+# ---- SMS webhook (kept at /api/v1/sms/inbound) ----
+# from app.routers import sms_router  # noqa: E402
+# app.include_router(sms_router.router, prefix="/api/v1")
+
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "png-health-hub"}
+    return {"status": "ok"}
 
-class InboundSMS(BaseModel):
-    from_: str
-    text: str
-    model_config = {"populate_by_name": True, "alias_generator": lambda s: "from" if s == "from_" else s}
 
-@app.post("/api/v1/sms/inbound")
-async def sms_inbound(body: InboundSMS, db: AsyncSession = Depends(get_db)):
-    reply = await handle_sms(db, sender=body.from_, raw_text=body.text)
-    log.info("SMS from %s -> %s", body.from_, reply[:60])
-    return {"reply": reply}
-# ---------- AUTO-MIGRATE ON STARTUP ----------
-# ---------- DIAGNOSTIC MIGRATION ENDPOINT ----------
 @app.get("/debug/migrate")
 async def debug_migrate():
-    """Run migrations and return the actual error, if any."""
-    import pathlib
-    from .database import engine
-    from sqlalchemy import text
-
-    migrations_dir = pathlib.Path(__file__).parent.parent / "migrations"
-    results = []
-
-    async with engine.begin() as conn:
-        for sql_file in sorted(migrations_dir.glob("*.sql")):
-            sql = sql_file.read_text(encoding="utf-8")
-            try:
-                # Execute the whole file as one block (Postgres handles multi-statement)
-                await conn.execute(text(sql))
-                results.append({"file": sql_file.name, "status": "OK"})
-            except Exception as e:
-                results.append({"file": sql_file.name, "status": "ERROR", "error": str(e)[:300]})
-
-    return {"migrations": results}
-
-# ============================================================
-# AUTO-MIGRATE + DIAGNOSTIC
-# ============================================================
-def _split_sql_statements(sql: str) -> list[str]:
-    """Split a multi-statement SQL file into individual commands."""
-    import re as _re
-    # Strip full-line comments
-    lines = []
-    for line in sql.splitlines():
-        stripped = line.lstrip()
-        if stripped.startswith("--"):
-            continue
-        lines.append(line)
-    cleaned = "\n".join(lines)
-
-    # Split on ; followed by optional whitespace + newline OR end of string
-    parts = _re.split(r";\s*(?:\n|$)", cleaned)
-    return [p.strip() for p in parts if p.strip()]
-
-
-async def _run_migrations(log_errors: bool = True) -> list[dict]:
-    import pathlib
-    from .database import engine
-    from sqlalchemy import text
-
-    migrations_dir = pathlib.Path(__file__).parent.parent / "migrations"
-    results: list[dict] = []
-
-    if not migrations_dir.exists():
-        log.warning("No migrations directory found at %s", migrations_dir)
-        return results
-
-    async with engine.begin() as conn:
-        for sql_file in sorted(migrations_dir.glob("*.sql")):
-            statements = _split_sql_statements(sql_file.read_text(encoding="utf-8"))
-            ok = 0
-            failed = 0
-            first_error: str | None = None
-            for stmt in statements:
-                try:
-                    await conn.execute(text(stmt))
-                    ok += 1
-                except Exception as e:
-                    failed += 1
-                    if first_error is None:
-                        first_error = str(e)[:300]
-                    if log_errors:
-                        log.warning("Statement failed in %s: %s", sql_file.name, str(e)[:150])
-            results.append({
-                "file": sql_file.name,
-                "statements": len(statements),
-                "ok": ok,
-                "failed": failed,
-                "first_error": first_error,
-            })
-    return results
-
-
-@app.on_event("startup")
-async def _auto_migrate():
-    log.info("Applying migrations...")
+    """Re-run migrations on demand and report per-file results."""
     try:
-        res = await _run_migrations(log_errors=False)
-        for r in res:
-            log.info("  %s: %d ok, %d failed", r["file"], r["ok"], r["failed"])
-        log.info("Auto-migrate complete.")
+        return await _auto_migrate()
     except Exception as e:
-        log.error("Auto-migrate failed: %s", e)
+        return {"status": "failed", "error": str(e)}
 
 
-@app.get("/debug/migrate")
-async def debug_migrate():
-    res = await _run_migrations(log_errors=True)
-    return {"migrations": res}
+@app.get("/debug/tables")
+async def debug_tables():
+    """List all tables in the public schema with row counts."""
+    async with AsyncSessionLocal() as session:
+        res = await session.execute(text(
+            "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename"
+        ))
+        tables = [r[0] for r in res.all()]
+        counts = {}
+        for t in tables:
+            try:
+                c = await session.execute(text(f'SELECT count(*) FROM "{t}"'))
+                counts[t] = c.scalar()
+            except Exception:
+                counts[t] = "ERR"
+        return {"tables": tables, "counts": counts}

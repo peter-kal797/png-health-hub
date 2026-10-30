@@ -3,17 +3,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    database_url: str
-    jwt_secret: str
-    jwt_alg: str = "HS256"
-    jwt_expire_minutes: int = 720
-    sms_master_psk: str
-    cors_origins: str = "http://localhost:5173"
-    log_level: str = "INFO"
+    DATABASE_URL: str
+    JWT_SECRET: str
+    JWT_ALG: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 720
+    SMS_MASTER_PSK: str
+    CORS_ORIGINS: str = "http://localhost:5173"
+    LOG_LEVEL: str = "INFO"
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
-    @field_validator("database_url", mode="before")
+    @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def _ensure_async_driver(cls, v: str) -> str:
         if isinstance(v, str) and v.startswith("postgresql://") and "+asyncpg" not in v:
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
     @property
     def cors_list(self) -> list[str]:
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
 
 settings = Settings()  # type: ignore
