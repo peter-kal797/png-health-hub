@@ -153,12 +153,24 @@ async function init() {
   };
 
   $("#btn-save-patient").onclick = async () => {
+    // FIX: Ensure the date is formatted correctly (YYYY-MM-DD) to prevent backend 500 crashes
+    let rawDate = $("#reg-dob").value;
+    if (!rawDate) {
+      toast("Please select a Date of Birth");
+      return;
+    }
+
     const body = {
-      patient_id: $("#reg-id").value, date_of_birth: $("#reg-dob").value,
-      first_name: $("#reg-fname").value, last_name: $("#reg-lname").value,
-      gender: $("#reg-gender").value, blood_type: $("#reg-blood").value,
-      home_province: $("#reg-province").value, severe_allergies: $("#reg-allergies").value || "NONE"
+      patient_id: $("#reg-id").value, 
+      date_of_birth: rawDate,
+      first_name: $("#reg-fname").value, 
+      last_name: $("#reg-lname").value,
+      gender: $("#reg-gender").value, 
+      blood_type: $("#reg-blood").value,
+      home_province: $("#reg-province").value, 
+      severe_allergies: $("#reg-allergies").value || "NONE"
     };
+    
     try {
       await api.registerPatient(body);
       toast("Patient registered");
