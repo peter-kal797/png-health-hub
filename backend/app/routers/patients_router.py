@@ -28,7 +28,7 @@ async def search_patients(
 
 @router.post("", response_model=PatientOut, status_code=201)
 async def register_patient(
-    body: PatientCreate,  # <-- CHANGED: Using schema instead of dict
+    body: PatientCreate,
     db: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(MO_or_admin),
 ):
