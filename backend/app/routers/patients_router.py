@@ -32,12 +32,10 @@ async def register_patient(
     db: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(MO_or_admin),
 ):
-    # 1. Check if exists
     existing = await db.execute(select(Patient).where(Patient.patient_id == body.patient_id))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Patient ID already exists")
 
-    # 2. Create
     new_patient = Patient(
         patient_id=body.patient_id,
         first_name=body.first_name,
