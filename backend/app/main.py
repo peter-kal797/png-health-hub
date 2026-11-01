@@ -182,11 +182,11 @@ for r in (
     fhir_router, analytics_router, referrals_router, dhis2_router,
     supply_chain_router, guidelines_router, surveillance_router,
 ):
-    app.include_router(r.router, prefix="/api/v1")
+    app.include_router(r.router, prefix="")
 
 # ---- SMS webhook (kept at /api/v1/sms/inbound) ----
 # from app.routers import sms_router  # noqa: E402
-# app.include_router(sms_router.router, prefix="/api/v1")
+# app.include_router(sms_router.router, prefix="")
 
 
 @app.get("/health")
