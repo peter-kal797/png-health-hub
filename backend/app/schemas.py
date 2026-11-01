@@ -17,6 +17,17 @@ class TokenResponse(BaseModel):
     facility: str
 
 
+class PatientCreate(BaseModel):
+    patient_id: str = Field(..., description="Format: PNG-SP-XXXXXX")
+    first_name: str
+    last_name: str
+    date_of_birth: date
+    gender: str
+    home_province: str
+    blood_type: str
+    severe_allergies: str = "NONE"
+
+
 class PatientOut(BaseModel):
     patient_id: str
     first_name: str
@@ -73,6 +84,7 @@ class SyncResult(BaseModel):
     rejected: int
     details: list[str] = []
 
+
 class VaccinationIn(BaseModel):
     patient_id: str
     vaccine_name: str
@@ -80,10 +92,12 @@ class VaccinationIn(BaseModel):
     date_administered: date
     administered_by: str | None = None
 
+
 class VaccinationOut(VaccinationIn):
     id: uuid.UUID
     created_at: datetime
     model_config = {"from_attributes": True}
+
 
 class MaternalRecordIn(BaseModel):
     patient_id: str
@@ -94,10 +108,12 @@ class MaternalRecordIn(BaseModel):
     fetal_heart_rate: str | None = None
     notes: str | None = None
 
+
 class MaternalRecordOut(MaternalRecordIn):
     id: uuid.UUID
     created_at: datetime
     model_config = {"from_attributes": True}
+
 
 class InventoryIn(BaseModel):
     drug_name: str
@@ -105,15 +121,18 @@ class InventoryIn(BaseModel):
     unit: str
     facility_name: str
 
+
 class InventoryOut(InventoryIn):
     id: uuid.UUID
     last_updated: datetime
     model_config = {"from_attributes": True}
 
+
 class BillIn(BaseModel):
     patient_id: str
     description: str
     amount: float
+
 
 class BillOut(BillIn):
     id: uuid.UUID
@@ -121,11 +140,13 @@ class BillOut(BillIn):
     created_at: datetime
     model_config = {"from_attributes": True}
 
+
 class ReferralIn(BaseModel):
     patient_id: str
     from_facility: str
     to_facility: str
     reason: str
+
 
 class ReferralOut(BaseModel):
     id: uuid.UUID
@@ -139,10 +160,12 @@ class ReferralOut(BaseModel):
     created_at: datetime
     model_config = {"from_attributes": True}
 
+
 class GuidelineIn(BaseModel):
     title: str
     category: str
     content: str
+
 
 class GuidelineOut(GuidelineIn):
     id: uuid.UUID
