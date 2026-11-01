@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <title>PNG Health Hub - Clinical Portal</title>
+  <link rel="icon" href="data:,">
   <link rel="manifest" href="/manifest.json" />
   <style>
     :root { color-scheme: dark; --primary: #0ea5e9; --bg: #0f172a; --card: #1e293b; --border: #334155; }
@@ -38,9 +39,6 @@
   <script src="/src/html5-qrcode.min.js"></script>
 </head>
 <body>
-  window.HUB_BACKEND_URL = "https://png-health-backend.onrender.com";
-</script>
-
   <div id="login-view">
     <div class="login-card">
       <h1 style="text-align: center;">PNG Health Hub</h1>
@@ -266,11 +264,9 @@
     <button id="btn-close-scanner" style="background: #ef4444; color: white;">Cancel</button>
   </div>
 
-   <script>
+  <script>
     window.HUB_BACKEND_URL = "https://png-health-backend.onrender.com";
   </script>
   <script type="module" src="/src/app.js"></script>
-</body>
-</html>
 </body>
 </html>
