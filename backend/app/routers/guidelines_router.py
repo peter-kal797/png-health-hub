@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..models import Guideline
-from ..schemas import GuidelineIn, GuidelineOut
+from ..schemas import GuidelineIn
 from ..security.rbac import CHW_or_above, MO_or_admin, CurrentUser
 
 router = APIRouter(prefix="/api/v1/guidelines", tags=["guidelines"])

@@ -5,7 +5,7 @@ from datetime import datetime
 
 from ..database import get_db
 from ..models import Patient, Inventory, Bill
-from ..schemas import InventoryIn, InventoryOut, BillIn, BillOut
+from ..schemas import InventoryIn, BillIn
 from ..security.rbac import CHW_or_above, CurrentUser
 
 router = APIRouter(prefix="/api/v1/operations", tags=["operations"])

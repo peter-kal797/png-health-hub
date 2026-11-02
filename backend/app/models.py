@@ -1,8 +1,7 @@
 import uuid
 from datetime import date, datetime
-from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, DateTime, Numeric, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, Float, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -125,7 +124,7 @@ class Bill(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     patient_id: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[str] = mapped_column(String(255), nullable=False)
-    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    amount: Mapped[float] = mapped_column(Float, nullable=False) # Changed to Float
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="UNPAID")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
