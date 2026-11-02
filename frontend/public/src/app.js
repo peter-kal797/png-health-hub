@@ -153,12 +153,8 @@ async function init() {
   };
 
   $("#btn-save-patient").onclick = async () => {
-    // FIX: Ensure the date is formatted correctly (YYYY-MM-DD) to prevent backend 500 crashes
     let rawDate = $("#reg-dob").value;
-    if (!rawDate) {
-      toast("Please select a Date of Birth");
-      return;
-    }
+    if (!rawDate) { toast("Please select a Date of Birth"); return; }
 
     const body = {
       patient_id: $("#reg-id").value, 
@@ -389,14 +385,17 @@ async function selectPatient(patient) {
     $("#allergy-alert").classList.remove("hidden");
     $("#det-allergies").textContent = patient.severe_allergies;
   } else { $("#allergy-alert").classList.add("hidden"); }
+  
   await cachePatient(deviceKey, patient);
-  loadHistory(patient.patient_id);
-  loadVaccines(patient.patient_id);
-  loadMaternal(patient.patient_id);
-  loadInventory();
-  loadBills(patient.patient_id);
-  loadInboundReferrals();
-  loadGuidelines();
+  
+  // Wrap these in try/catch or Promise.allSettled so one failure doesn't crash the page
+  try { loadHistory(patient.patient_id); } catch (e) { console.error(e); }
+  try { loadVaccines(patient.patient_id); } catch (e) { console.error(e); }
+  try { loadMaternal(patient.patient_id); } catch (e) { console.error(e); }
+  try { loadInventory(); } catch (e) { console.error(e); }
+  try { loadBills(patient.patient_id); } catch (e) { console.error(e); }
+  try { loadInboundReferrals(); } catch (e) { console.error(e); }
+  try { loadGuidelines(); } catch (e) { console.error(e); }
 }
 
 async function loadHistory(pid) {

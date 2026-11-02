@@ -2,9 +2,20 @@ const BASE = window.HUB_BACKEND_URL || "https://png-health-backend.onrender.com"
 let _token = localStorage.getItem("hub_jwt") || null;
 let _facility = localStorage.getItem("hub_facility") || "";
 
-export function setToken(t, facility) { _token = t; if (t) localStorage.setItem("hub_jwt", t); if (facility) localStorage.setItem("hub_facility", facility); }
-export function clearToken() { _token = null; localStorage.removeItem("hub_jwt"); }
-export function isOnline() { return navigator.onLine; }
+export function setToken(t, facility) { 
+  _token = t; 
+  if (t) localStorage.setItem("hub_jwt", t); 
+  if (facility) localStorage.setItem("hub_facility", facility); 
+}
+
+export function clearToken() { 
+  _token = null; 
+  localStorage.removeItem("hub_jwt"); 
+}
+
+export function isOnline() { 
+  return navigator.onLine; 
+}
 
 async function request(path, opts = {}) {
   if (!navigator.onLine) throw new Error("offline");
@@ -28,11 +39,16 @@ export const api = {
   listMaternal: (id) => request(`/api/v1/clinical/maternal/${encodeURIComponent(id)}`),
   addMaternal: (body) => request("/api/v1/clinical/maternal", { method: "POST", body: JSON.stringify(body) }),
   getFullReport: (id) => request(`/api/v1/reports/${encodeURIComponent(id)}`),
-    listInventory: () => request("/api/v1/operations/inventory"),
+  listInventory: () => request("/api/v1/operations/inventory"),
   addInventory: (body) => request("/api/v1/operations/inventory", { method: "POST", body: JSON.stringify(body) }),
   listBills: (id) => request(`/api/v1/operations/bills/${encodeURIComponent(id)}`),
   addBill: (body) => request("/api/v1/operations/bills", { method: "POST", body: JSON.stringify(body) }),
-    searchDiagnoses: (q) => request(`/api/v1/encounters/search/diagnosis?q=${encodeURIComponent(q)}`),
+  searchDiagnoses: (q) => request(`/api/v1/encounters/search/diagnosis?q=${encodeURIComponent(q)}`),
   lowStock: () => request("/api/v1/operations/low-stock"),
   printBill: (id) => request(`/api/v1/operations/bills/${encodeURIComponent(id)}/print`),
+  listGuidelines: () => request("/api/v1/guidelines"),
+  searchGuidelines: (q) => request(`/api/v1/guidelines/search?q=${encodeURIComponent(q)}`),
+  createReferral: (body) => request("/api/v1/referrals", { method: "POST", body: JSON.stringify(body) }),
+  listInbound: (facility) => request(`/api/v1/referrals/inbound/${encodeURIComponent(facility)}`),
+  acceptReferral: (id) => request(`/api/v1/referrals/${encodeURIComponent(id)}/accept`, { method: "POST" }),
 };

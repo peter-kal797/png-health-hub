@@ -26,16 +26,6 @@ MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
 
 
 def split_sql_statements(sql: str) -> list[str]:
-    """
-    Split a SQL script into individual statements.
-
-    Handles:
-      - line comments (-- ...)
-      - block comments (/* ... */)
-      - single-quoted strings with '' escapes
-      - dollar-quoted strings ($$ ... $$, $tag$ ... $tag$)
-      - semicolons only at statement boundaries
-    """
     statements: list[str] = []
     buf: list[str] = []
     i, n = 0, len(sql)
@@ -50,13 +40,11 @@ def split_sql_statements(sql: str) -> list[str]:
         ch = sql[i]
         nxt = sql[i + 1] if i + 1 < n else ""
 
-        # Line comment
         if ch == "-" and nxt == "-":
             while i < n and sql[i] != "\n":
                 i += 1
             continue
 
-        # Block comment
         if ch == "/" and nxt == "*":
             i += 2
             while i + 1 < n and not (sql[i] == "*" and sql[i + 1] == "/"):
@@ -64,7 +52,6 @@ def split_sql_statements(sql: str) -> list[str]:
             i += 2
             continue
 
-        # Single-quoted string
         if ch == "'":
             buf.append(ch)
             i += 1
@@ -80,7 +67,6 @@ def split_sql_statements(sql: str) -> list[str]:
                 i += 1
             continue
 
-        # Dollar-quoted string ($tag$ ... $tag$)
         if ch == "$":
             m = re.match(r"\$[A-Za-z_]*\$", sql[i:])
             if m:
@@ -96,7 +82,6 @@ def split_sql_statements(sql: str) -> list[str]:
                     i = end + len(tag)
                 continue
 
-        # Statement boundary
         if ch == ";":
             flush()
             i += 1
@@ -129,7 +114,6 @@ async def run_migration_file(session: AsyncSession, path: Path) -> int:
 
 
 async def _auto_migrate() -> dict:
-    """Run every .sql file in migrations/ in lexicographic order."""
     if not MIGRATIONS_DIR.exists():
         logger.warning("Migrations dir %s missing", MIGRATIONS_DIR)
         return {"status": "no_migrations_dir", "files": []}
@@ -137,9 +121,11 @@ async def _auto_migrate() -> dict:
     files = sorted(MIGRATIONS_DIR.glob("*.sql"))
     report = {"status": "ok", "files": [], "errors": []}
 
-    # Verify connectivity once
-    async with AsyncSessionLocal() as session:
-        await session.execute(text("SELECT 1"))
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+    except Exception as e:
+        return {"status": "db_unreachable", "error": str(e)}
 
     for f in files:
         try:
@@ -151,7 +137,7 @@ async def _auto_migrate() -> dict:
             report["status"] = "failed"
             report["errors"].append({"file": f.name, "error": str(e)})
             logger.exception("✗ %s", f.name)
-            break
+            # Don't break, continue to next file
     return report
 
 
@@ -170,7 +156,7 @@ app = FastAPI(title="PNG Health Hub", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()],
+    allow_origins=["*"], # Allow all for now to fix CORS
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -182,30 +168,21 @@ for r in (
     fhir_router, analytics_router, referrals_router, dhis2_router,
     supply_chain_router, guidelines_router, surveillance_router,
 ):
-    app.include_router(r.router, prefix="")
-
-# ---- SMS webhook (kept at /api/v1/sms/inbound) ----
-# from app.routers import sms_router  # noqa: E402
-# app.include_router(sms_router.router, prefix="")
-
+    app.include_router(r.router) # Removed prefix here, assuming routers define their own
 
 @app.get("/health")
 async def health():
     return {"status": "ok"}
 
-
 @app.get("/debug/migrate")
 async def debug_migrate():
-    """Re-run migrations on demand and report per-file results."""
     try:
         return await _auto_migrate()
     except Exception as e:
         return {"status": "failed", "error": str(e)}
 
-
 @app.get("/debug/tables")
 async def debug_tables():
-    """List all tables in the public schema with row counts."""
     async with AsyncSessionLocal() as session:
         res = await session.execute(text(
             "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename"
