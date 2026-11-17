@@ -1,3 +1,4 @@
+const BASE = window.HUB_BACKEND_URL || "https://png-health-backend.onrender.com";
 import { api, setToken, clearToken, isOnline } from "./api.js";
 import { getDeviceKey } from "./crypto.js";
 import { cachePatient, queueEncounter, listPending, markSynced, decryptQueueItem } from "./db.js";
@@ -171,42 +172,30 @@ async function init() {
     const patientId = `PNG-SP-${randomNum}`;
 
     try {
-        const res = await fetch(`${BASE}/api/v1/patients`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify({
-                patient_id: patientId,
-                first_name: fName,
-                last_name: lName,
-                date_of_birth: dob,
-                gender: gender,
-                home_province: province,
-                blood_type: blood,
-                severe_allergies: allergies
-            })
+        await api.registerPatient({
+            patient_id: patientId,
+            first_name: fName,
+            last_name: lName,
+            date_of_birth: dob,
+            gender: gender,
+            home_province: province,
+            blood_type: blood,
+            severe_allergies: allergies
         });
-
-        if (res.ok) {
-            alert(`Patient Registered Successfully! ID: ${patientId}`);
-            document.getElementById('registerModal').style.display = 'none';
-            // Clear modal fields
-            document.getElementById('regFirstName').value = '';
-            document.getElementById('regLastName').value = '';
-            document.getElementById('regDob').value = '';
-            
-            // Auto-search for the new patient
-            $("#search-input").value = patientId;
-            $("#btn-search").click();
-        } else {
-            const err = await res.json();
-            alert(`Error: ${err.detail || 'Failed to register patient'}`);
-        }
+        
+        alert(`Patient Registered Successfully! ID: ${patientId}`);
+        document.getElementById('registerModal').style.display = 'none';
+        // Clear modal fields
+        document.getElementById('regFirstName').value = '';
+        document.getElementById('regLastName').value = '';
+        document.getElementById('regDob').value = '';
+        
+        // Auto-search for the new patient
+        $("#search-input").value = patientId;
+        $("#btn-search").click();
     } catch (e) {
         console.error(e);
-        alert("Network error occurred.");
+        alert(`Error: ${e.message || 'Failed to register patient'}`);
     }
   };
 
