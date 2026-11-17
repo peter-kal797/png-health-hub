@@ -146,35 +146,68 @@ async function init() {
     document.getElementById("scanner-modal").style.display = "none";
   };
 
+  // OPEN THE NEW MODAL
   $("#btn-show-register").onclick = () => {
-    $("#empty-state").classList.add("hidden");
-    $("#patient-details").classList.add("hidden");
-    $("#register-form").classList.remove("hidden");
+    document.getElementById("registerModal").style.display = "flex";
   };
 
-  $("#btn-save-patient").onclick = async () => {
-    let rawDate = $("#reg-dob").value;
-    if (!rawDate) { toast("Please select a Date of Birth"); return; }
+  // SAVE PATIENT FROM THE NEW MODAL
+  $("#btnSavePatient").onclick = async () => {
+    const fName = document.getElementById("regFirstName").value;
+    const lName = document.getElementById("regLastName").value;
+    const dob = document.getElementById("regDob").value;
+    const gender = document.getElementById("regGender").value;
+    const province = document.getElementById("regProvince").value;
+    const blood = document.getElementById("regBlood").value;
+    const allergies = document.getElementById("regAllergies").value || 'None';
 
-    const body = {
-      patient_id: $("#reg-id").value, 
-      date_of_birth: rawDate,
-      first_name: $("#reg-fname").value, 
-      last_name: $("#reg-lname").value,
-      gender: $("#reg-gender").value, 
-      blood_type: $("#reg-blood").value,
-      home_province: $("#reg-province").value, 
-      severe_allergies: $("#reg-allergies").value || "NONE"
-    };
-    
+    if (!fName || !lName || !dob) {
+        alert("First Name, Last Name, and Date of Birth are required!");
+        return;
+    }
+
+    // Generate a new unique Patient ID
+    const randomNum = Math.floor(Math.random() * 900000) + 100000;
+    const patientId = `PNG-SP-${randomNum}`;
+
     try {
-      await api.registerPatient(body);
-      toast("Patient registered");
-      $("#register-form").classList.add("hidden");
-      $("#empty-state").classList.remove("hidden");
-      $("#search-input").value = body.patient_id;
-      $("#btn-search").click();
-    } catch (e) { toast("Failed: " + e.message); }
+        const res = await fetch(`${BASE}/api/v1/patients`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+                patient_id: patientId,
+                first_name: fName,
+                last_name: lName,
+                date_of_birth: dob,
+                gender: gender,
+                home_province: province,
+                blood_type: blood,
+                severe_allergies: allergies
+            })
+        });
+
+        if (res.ok) {
+            alert(`Patient Registered Successfully! ID: ${patientId}`);
+            document.getElementById('registerModal').style.display = 'none';
+            // Clear modal fields
+            document.getElementById('regFirstName').value = '';
+            document.getElementById('regLastName').value = '';
+            document.getElementById('regDob').value = '';
+            
+            // Auto-search for the new patient
+            $("#search-input").value = patientId;
+            $("#btn-search").click();
+        } else {
+            const err = await res.json();
+            alert(`Error: ${err.detail || 'Failed to register patient'}`);
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Network error occurred.");
+    }
   };
 
   $("#btn-save-encounter").onclick = async () => {
@@ -375,7 +408,6 @@ async function selectPatient(patient) {
   currentPatient = patient;
   document.querySelectorAll('.patient-item').forEach(el => el.classList.remove('active'));
   $("#empty-state").classList.add("hidden");
-  $("#register-form").classList.add("hidden");
   $("#patient-details").classList.remove("hidden");
   $("#det-name").textContent = patient.first_name + " " + patient.last_name;
   $("#det-id").textContent = patient.patient_id;
@@ -388,7 +420,6 @@ async function selectPatient(patient) {
   
   await cachePatient(deviceKey, patient);
   
-  // Wrap these in try/catch or Promise.allSettled so one failure doesn't crash the page
   try { loadHistory(patient.patient_id); } catch (e) { console.error(e); }
   try { loadVaccines(patient.patient_id); } catch (e) { console.error(e); }
   try { loadMaternal(patient.patient_id); } catch (e) { console.error(e); }
