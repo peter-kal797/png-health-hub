@@ -1,4 +1,3 @@
-const BASE = window.HUB_BACKEND_URL || "https://png-health-backend.onrender.com";
 import { api, setToken, clearToken, isOnline } from "./api.js";
 import { getDeviceKey } from "./crypto.js";
 import { cachePatient, queueEncounter, listPending, markSynced, decryptQueueItem } from "./db.js";
@@ -97,6 +96,7 @@ async function init() {
     } catch (e) { toast("Search failed: " + e.message); }
   };
 
+  // UPDATED DIAGNOSIS SEARCH
   $("#btn-diag-search").onclick = async () => {
     const q = $("#diag-search").value.trim();
     if (!q) return;
@@ -104,14 +104,21 @@ async function init() {
       const results = await api.searchDiagnoses(q);
       const list = $("#patient-list");
       list.innerHTML = "";
-      if (!results.length) { list.innerHTML = '<div style="padding:16px;text-align:center;color:#94a3b8;">No encounters found.</div>'; return; }
+      if (!results.length) { 
+        list.innerHTML = '<div style="padding:16px;text-align:center;color:#94a3b8;">No encounters found matching that diagnosis.</div>'; 
+        return; 
+      }
       results.forEach(r => {
         const div = document.createElement("div");
         div.className = "patient-item";
-        div.innerHTML = '<div class="name">' + r.diagnosis + '</div><div class="id">' + r.patient_id + ' @ ' + r.facility + '</div>';
+        div.innerHTML = '<div class="name">' + r.diagnosis + '</div><div class="id">Patient: ' + r.patient_id + ' @ ' + r.facility + '</div>';
         div.onclick = async () => {
-          const patient = await api.getPatient(r.patient_id);
-          selectPatient(patient);
+          try {
+            const patient = await api.getPatient(r.patient_id);
+            selectPatient(patient);
+          } catch (e) {
+            toast("Failed to load patient: " + e.message);
+          }
         };
         list.appendChild(div);
       });
@@ -147,12 +154,10 @@ async function init() {
     document.getElementById("scanner-modal").style.display = "none";
   };
 
-  // OPEN THE NEW MODAL
   $("#btn-show-register").onclick = () => {
     document.getElementById("registerModal").style.display = "flex";
   };
 
-  // SAVE PATIENT FROM THE NEW MODAL
   $("#btnSavePatient").onclick = async () => {
     const fName = document.getElementById("regFirstName").value;
     const lName = document.getElementById("regLastName").value;
@@ -167,7 +172,6 @@ async function init() {
         return;
     }
 
-    // Generate a new unique Patient ID
     const randomNum = Math.floor(Math.random() * 900000) + 100000;
     const patientId = `PNG-SP-${randomNum}`;
 
@@ -185,12 +189,10 @@ async function init() {
         
         alert(`Patient Registered Successfully! ID: ${patientId}`);
         document.getElementById('registerModal').style.display = 'none';
-        // Clear modal fields
         document.getElementById('regFirstName').value = '';
         document.getElementById('regLastName').value = '';
         document.getElementById('regDob').value = '';
         
-        // Auto-search for the new patient
         $("#search-input").value = patientId;
         $("#btn-search").click();
     } catch (e) {

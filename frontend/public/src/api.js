@@ -21,8 +21,12 @@ async function request(path, opts = {}) {
   if (!navigator.onLine) throw new Error("offline");
   const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
   if (_token) headers["Authorization"] = `Bearer ${_token}`;
+  
   const res = await fetch(BASE + path, { ...opts, headers });
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`HTTP ${res.status}: ${errText}`);
+  }
   return res.json();
 }
 
