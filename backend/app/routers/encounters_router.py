@@ -72,7 +72,7 @@ async def list_encounters(
         .where(Encounter.patient_id == patient_id)
         .order_by(Encounter.created_at.desc())
         .limit(min(limit, 100))
-    )
+    )  
     return q.scalars().all()
 
 @router.get("/search/diagnosis")
