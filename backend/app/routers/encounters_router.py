@@ -72,7 +72,7 @@ async def list_encounters(
         .where(Encounter.patient_id == patient_id)
         .order_by(Encounter.created_at.desc())
         .limit(min(limit, 100))
-    )  
+    )
     return q.scalars().all()
 
 @router.get("/search/diagnosis")
@@ -81,7 +81,6 @@ async def search_diagnosis(
     db: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(CHW_or_above),
 ):
-    from sqlalchemy import func
     query = (
         select(Encounter.patient_id, Encounter.diagnosis, Encounter.created_at, Encounter.facility_name)
         .where(Encounter.diagnosis.ilike(f"%{q}%"))
