@@ -1,44 +1,37 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from ..database import get_db
-from ..models import Patient, Encounter, Vaccination, Facility
-from ..security.rbac import MO_or_admin, CurrentUser
+from ..models import Patient, Encounter
+from ..security.rbac import CHW_or_above, CurrentUser
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
 
 @router.get("")
 async def get_analytics(
     db: AsyncSession = Depends(get_db),
-    user: CurrentUser = Depends(MO_or_admin),
+    user: CurrentUser = Depends(CHW_or_above),
 ):
-    p_count = await db.scalar(select(func.count(Patient.patient_id)))
-    e_count = await db.scalar(select(func.count(Encounter.encounter_id)))
-    v_count = await db.scalar(select(func.count(Vaccination.id)))
-
-    facility_q = await db.execute(
-        select(Encounter.facility_name, func.count(Encounter.encounter_id))
-        .group_by(Encounter.facility_name)
-    )
-    facilities = [{"name": row[0], "count": row[1]} for row in facility_q.all()]
-
-    diag_q = await db.execute(
-        select(Encounter.diagnosis, func.count(Encounter.encounter_id))
+    # 1. Count total patients
+    patient_count = await db.scalar(select(func.count()).select_from(Patient))
+    
+    # 2. Count total encounters
+    encounter_count = await db.scalar(select(func.count()).select_from(Encounter))
+    
+    # 3. Get top 5 diagnoses
+    diag_query = (
+        select(Encounter.diagnosis, func.count(Encounter.diagnosis).label("count"))
+        .where(Encounter.diagnosis.isnot(None))
         .group_by(Encounter.diagnosis)
-        .order_by(func.count(Encounter.encounter_id).desc())
+        .order_by(func.count(Encounter.diagnosis).desc())
         .limit(5)
     )
-    diagnoses = [{"name": row[0], "count": row[1]} for row in diag_q.all()]
-
-    # Get list of all facilities for the map
-    f_q = await db.execute(select(Facility))
-    all_facilities = [{"name": f.name, "province": f.province, "type": f.type} for f in f_q.scalars().all()]
+    diag_res = await db.execute(diag_query)
+    top_diagnoses = [{"diagnosis": row[0], "count": row[1]} for row in diag_res.all()]
 
     return {
-        "total_patients": p_count,
-        "total_encounters": e_count,
-        "total_vaccinations": v_count,
-        "facilities": facilities,
-        "top_diagnoses": diagnoses,
-        "all_facilities": all_facilities
+        "total_patients": patient_count or 0,
+        "total_encounters": encounter_count or 0,
+        "top_diagnoses": top_diagnoses
     }

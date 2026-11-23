@@ -113,6 +113,7 @@
             <button class="tab-btn" data-tab="tab-operations">Pharmacy & Billing</button>
             <button class="tab-btn" data-tab="tab-referrals">Referrals</button>
             <button class="tab-btn" data-tab="tab-guidelines">Guidelines</button>
+            <button class="tab-btn" data-tab="tab-dashboard">Dashboard</button>
           </div>
 
           <div id="tab-encounter" class="tab-content">
@@ -236,6 +237,27 @@
               <div id="guidelines-list"></div>
             </div>
           </div>
+
+          <!-- DASHBOARD TAB CORRECTLY PLACED HERE -->
+          <div id="tab-dashboard" class="tab-content hidden">
+            <div class="card">
+              <h2>Clinic Analytics Dashboard</h2>
+              <div class="grid-2" style="margin-bottom: 24px;">
+                <div style="background: #0f172a; padding: 20px; border-radius: 8px; border: 1px solid #334155;">
+                  <div class="label">Total Registered Patients</div>
+                  <div id="stat-patients" style="font-size: 2rem; font-weight: bold; color: #0ea5e9;">0</div>
+                </div>
+                <div style="background: #0f172a; padding: 20px; border-radius: 8px; border: 1px solid #334155;">
+                  <div class="label">Total Encounters Recorded</div>
+                  <div id="stat-encounters" style="font-size: 2rem; font-weight: bold; color: #10b981;">0</div>
+                </div>
+              </div>
+              
+              <h3>Top 5 Diagnoses</h3>
+              <div id="stat-diagnoses" style="margin-top: 16px;"></div>
+            </div>
+          </div>
+
         </div>
       </div>
     </main>
