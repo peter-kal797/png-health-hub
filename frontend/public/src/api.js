@@ -43,6 +43,7 @@ export const api = {
   listMaternal: (id) => request(`/api/v1/clinical/maternal/${encodeURIComponent(id)}`),
   addMaternal: (body) => request("/api/v1/clinical/maternal", { method: "POST", body: JSON.stringify(body) }),
   getFullReport: (id) => request(`/api/v1/reports/${encodeURIComponent(id)}`),
+    getAnalytics: () => request("/api/v1/analytics"),
   listInventory: () => request("/api/v1/operations/inventory"),
   addInventory: (body) => request("/api/v1/operations/inventory", { method: "POST", body: JSON.stringify(body) }),
   listBills: (id) => request(`/api/v1/operations/bills/${encodeURIComponent(id)}`),

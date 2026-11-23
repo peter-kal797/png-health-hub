@@ -418,6 +418,7 @@ async function selectPatient(patient) {
   try { loadBills(patient.patient_id); } catch (e) { console.error(e); }
   try { loadInboundReferrals(); } catch (e) { console.error(e); }
   try { loadGuidelines(); } catch (e) { console.error(e); }
+  try { loadDashboard(); } catch (e) { console.error(e); }
 }
 
 async function loadHistory(pid) {
@@ -427,6 +428,31 @@ async function loadHistory(pid) {
     const history = await api.getHistory(pid);
     timeline.innerHTML = history.length ? history.map(h => '<div class="timeline-item"><div class="timeline-date">' + new Date(h.created_at).toLocaleString() + ' - ' + h.facility_name + '</div><div class="timeline-content"><strong>Dx:</strong> ' + h.diagnosis + '<br><strong>Sx:</strong> ' + h.symptoms + '<br><strong>Rx:</strong> ' + h.medications_prescribed + (h.blood_pressure ? '<br>BP: ' + h.blood_pressure : '') + (h.temperature ? ' | Temp: ' + h.temperature : '') + (h.heart_rate ? ' | HR: ' + h.heart_rate : '') + (h.weight ? ' | Wt: ' + h.weight : '') + '</div></div>').join('') : '<div style="color:#94a3b8;">No prior encounters.</div>';
   } catch (e) { timeline.innerHTML = '<div style="color:#ef4444;">Failed.</div>'; }
+}
+async function loadDashboard() {
+  try {
+    const data = await api.getAnalytics();
+    
+    document.getElementById("stat-patients").textContent = data.total_patients || 0;
+    document.getElementById("stat-encounters").textContent = data.total_encounters || 0;
+    
+    const diagContainer = document.getElementById("stat-diagnoses");
+    if (data.top_diagnoses && data.top_diagnoses.length) {
+      diagContainer.innerHTML = data.top_diagnoses.map(d => 
+        `<div style="display:flex; justify-content:space-between; padding: 12px; border-bottom: 1px solid #334155;">
+          <span>${d.diagnosis}</span>
+          <strong style="color:#0ea5e9;">${d.count} cases</strong>
+        </div>`
+      ).join('');
+    } else {
+      diagContainer.innerHTML = '<div style="color:#94a3b8;">No diagnosis data yet.</div>';
+    }
+  } catch (e) {
+    console.warn("Could not load analytics:", e.message);
+    document.getElementById("stat-patients").textContent = "-";
+    document.getElementById("stat-encounters").textContent = "-";
+    document.getElementById("stat-diagnoses").innerHTML = '<div style="color:#94a3b8;">Failed to load analytics. Check connection.</div>';
+  }
 }
 
 init();
